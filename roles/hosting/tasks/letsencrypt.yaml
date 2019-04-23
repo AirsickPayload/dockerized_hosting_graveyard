@@ -1,0 +1,19 @@
+- name: install LetsEncryptPackage
+  become: yes
+  package: 
+    name: certbot 
+    state: present
+
+- name: Stop the nginx container
+  shell: docker-compose stop nginx || true
+  args:
+    chdir: "{{ repo_files_path }}"
+
+- name: create certificates
+  become: yes
+  shell: certbot certonly --rsa-key-size {{ letsencrypt_rsa_key_size }} --non-interactive --force-renewal --agree-tos --email {{ my_email }} --standalone {{ letsencrypt_domains_string }}
+
+- name: Bring nginx back up
+  shell: docker-compose up -d nginx
+  args:
+    chdir: "{{ repo_files_path }}"

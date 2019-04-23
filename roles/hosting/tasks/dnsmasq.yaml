@@ -1,0 +1,55 @@
+---
+
+- name: Install dnsmasq
+  package:
+    name: dnsmasq
+    state: present
+
+- name: Place the custom dnsmasq settings
+  blockinfile:
+    dest: /etc/dnsmasq.d/ansible_settings.conf
+    create: yes
+    owner: root
+    group: root
+    block: "{{ dnsmasq_conf }}"
+
+- name: Check if NetworkManager is running
+  command: systemctl status NetworkManager
+  ignore_errors: yes
+  changed_when: false
+  register: nm_status
+
+- name: Disable NetworkManager's DNS settings meddling
+  lineinfile:
+    dest: /etc/NetworkManager/NetworkManager.conf
+    state: present
+    insertafter: "[main]"
+    line: "dns=none"
+  when: nm_status|success
+
+- name: Restart NetworkManager
+  service:
+    name: NetworkManager
+    state: restarted
+  when: nm_status|success
+
+- name: Remove symlinked /etc/resolv
+  file:
+    path: /etc/resolv.conf
+    state: absent
+  when: nm_status|success
+
+- name: Place the templated /etc/resolv.conf file
+  template:
+    src: resolv.conf.j2
+    dest: /etc/resolv.conf
+    owner: root
+    group: root
+    mode: 0644
+    backup: yes
+
+- name: Restart dnsmasq
+  service:
+    name: dnsmasq
+    state: restarted 
+    enabled: yes

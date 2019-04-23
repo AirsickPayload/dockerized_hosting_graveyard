@@ -1,0 +1,31 @@
+---
+
+- name: Ensure firewalld is installed
+  package:
+    name: firewalld
+    state: latest
+  become: yes
+
+- name: install python bindings for firewalld
+  become: yes
+  dnf: name=python-firewall state=present
+
+- name: open necessary ports
+  become: yes
+  firewalld: zone=public port="{{ item.port }}/{{ item.proto }}" permanent=true state=enabled
+  with_items: "{{ firewall_ports }}"
+
+- name: register interface name of our docker compose network (it has to be created first by docker!)
+  shell: netstat -ie | grep -B1 "{{ docker_compose_net_ip }}" | head -n1 | awk '{print $1}' | sed 's/:$//'
+  ignore_errors: no
+  register: interface_name
+
+- debug: var=interface_name
+
+- name: add docker compose network to the trusted zone
+  become: yes
+  firewalld: zone=trusted interface="{{ interface_name.stdout }}" permanent=true state=enabled
+
+- name: restart firewalld
+  become: yes
+  service: name=firewalld state=restarted

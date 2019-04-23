@@ -1,0 +1,89 @@
+- name: Check if docker command exists
+  shell: command -v docker >/dev/null 2>&1
+  ignore_errors: yes
+  register: result
+
+- name: Install pip
+  package:
+    name: "{{ python_pip_pkg }}"
+    state: present
+
+- name: Copy Docker repo file (RedHat-based)
+  copy:
+    src: "docker_{{ ansible_distribution }}.repo"
+    dest: /etc/yum.repos.d/docker.repo
+  when: result|failed and ansible_os_family == "RedHat"
+
+- name: Add Docker's key to APT
+  apt_key:
+    url: https://apt.dockerproject.org/gpg
+    state: present
+  when: result|failed and ansible_distribution == "Ubuntu"
+
+- name: Add Docker APT repo
+  apt_repository:
+    repo: "deb https://apt.dockerproject.org/repo/ ubuntu-{{ ubuntu_release }} main"
+    state: present
+    update_cache: yes
+  when: result|failed and ansible_distribution == "Ubuntu"
+
+- name: Install apt-transport-https
+  package:
+    name: apt-transport-https
+    state: present
+  when: ansible_distribution == "Ubuntu"
+
+- name: Install docker-engine and docker-compose
+  package:
+    name: "{{ item }}"
+    state: present
+  with_items:
+    - docker-engine
+    - docker-compose
+  when: result|failed
+
+- name: Add docker group
+  group: name=docker state=present
+
+- name: Ensure that user is in the 'docker' group
+  user: 
+    name: "{{ os_user }}" 
+    group: "{{ item }}" 
+    append: yes
+  with_items:
+    - docker
+
+- name: Ensure Docker's graph path exists
+  file:
+    path: "{{ docker_graph_path }}"
+    state: directory
+    owner: root
+    group: docker
+
+- name: Set overlay2 storage driver and graph location (Ubuntu)
+  replace:
+    dest: "{{ docker_service_file }}"
+    regexp: "/usr/bin/dockerd -H fd://"
+    replace: "/usr/bin/dockerd --storage-driver=overlay2 -g {{ docker_graph_path }} -H fd://"
+  when: ansible_distribution == "Ubuntu"
+
+- name: Set overlay2 storage driver and graph location (CentOS)
+  replace:
+    dest: "{{ docker_options_path }}"
+    regexp: "OPTIONS='--selinux-enabled"
+    replace: "OPTIONS='--storage-driver=overlay2 -g {{ docker_graph_path }} --selinux-enabled"
+  when: ansible_distribution == "RedHat"
+
+- name: Set overlay2 storage driver and graph location (Fedora)
+  replace:
+    dest: "{{ docker_options_path }}"
+    regexp: "/usr/bin/dockerd$"
+    replace: "/usr/bin/dockerd --storage-driver=overlay2 -g {{ docker_graph_path }}"
+  when: ansible_distribution == "Fedora"
+
+- name: Enable docker service
+  systemd:
+    name: docker
+    state: restarted 
+    enabled: yes
+    daemon_reload: yes

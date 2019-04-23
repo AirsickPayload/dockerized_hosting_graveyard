@@ -1,0 +1,24 @@
+---
+
+- name: Install Netdata dependencies
+  package:
+    name: "{{ item }}"
+    state: latest
+  become: yes
+  with_items: "{{ netdata_dependencies }}"
+
+- name: create Netdata repo path directory
+  file:
+    path: "{{ netdata_repo_path }}"
+    state: directory
+    owner: "{{ os_user }}"
+    group: "{{ os_user }}"
+
+- name: Ensure the Netdata git repo exists (or update it)
+  git: repo=https://github.com/firehol/netdata.git dest="{{ netdata_repo_path }}"
+
+- name: Run the automatic installer/updater
+  shell: ./netdata-installer.sh --dont-wait
+  args:
+    chdir: "{{ netdata_repo_path }}"
+  become: yes

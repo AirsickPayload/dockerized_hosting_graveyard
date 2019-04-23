@@ -1,0 +1,7 @@
+---
+
+- ufw:
+    rule: allow
+    port: "{{ item.port }}"
+    proto: "{{ item.proto }}"
+  with_items: "{{ firewall_ports }}"

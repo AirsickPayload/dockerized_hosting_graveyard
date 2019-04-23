@@ -1,0 +1,30 @@
+
+debug = false
+logLevel = "ERROR"
+
+defaultEntryPoints = [
+{% for entrypoint in traefik.defaultEntrypoints %}
+  "{{ entrypoint }}",
+{% endfor %}
+]
+
+[api]
+dashboard = {{ traefik.dashboard.enabled }}
+entryPoint = "{{ traefik.dashboard.entrypoint }}"
+
+[docker]
+{{ traefik.dockerOpts }}
+
+{% if traefik.acme.enabled %}
+[acme]
+email      = "{{ traefik.acme.email }}"
+storage    = "{{ traefik.acme.storage }}"
+entrypoint = "{{ traefik.acme.entrypoint }}"
+onHostRule = true
+{{ traefik.acme.challenge }}
+{% endif %}
+
+[entryPoints]
+{% for entrypoint in traefik.entrypoints %}
+  {{ traefik.entrypoints[entrypoint] }}
+{% endfor %}

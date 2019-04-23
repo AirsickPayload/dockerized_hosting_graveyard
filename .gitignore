@@ -1,0 +1,4 @@
+*.conf
+servers/*
+**/compose_runtime/
+**/vagrant/.vagrant

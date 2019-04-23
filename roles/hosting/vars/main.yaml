@@ -1,0 +1,77 @@
+user: "airsickpayload"
+user_uid: 1000
+home_path: "/home/{{ os_user }}"
+my_email: "redacted"
+fedora_current: 27
+ubuntu_release: "xenial"
+main_domain: "redacted"
+zsh_theme: "mrtazz"
+firewall_ports:
+  - { port: '80', proto: 'tcp' }
+  - { port: '10022', proto: 'tcp' }
+  - { port: '443', proto: 'tcp' }
+  - { port: '1194', proto: 'udp' }
+  - { port: '4001', proto: 'tcp' }
+  - { port: '546', proto: 'udp' }
+  - { port: '22000', proto: 'tcp' }
+  - { port: '6666', proto: 'tcp' }
+  - { port: '6666', proto: 'udp' }
+ssh_key_pub: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPGTKTGtn4C6XwHkK6YjhukPRii8DkLoX+I1Yusbsrfx alan@fedora"
+docker_volumes:
+  - vpnvolume
+  - giteavolume
+  - mongovolume
+  - syncthingvolume
+  - publicvolume
+  - fluentdvolume
+  - elasticsearchvolume
+
+docker_noncustom_images:
+  - "gitea/gitea:1.1"
+  - "kylemanna/openvpn:latest"
+  - "jbenet/go-ipfs:latest"
+  - "wonderfall/searx:latest"
+  - "nginx:alpine"
+  - "mongo:latest"
+  - "linuxserver/deluge:latest"
+  - "andreimarcu/linx-server"
+
+docker_host_mounts_directories:
+  - "{{ home_path }}/Downloads"
+letsencrypt_domains_string: >
+  -d monit.redacted
+  -d ipfs.redacted
+  -d gitea.redacted
+  -d searx.redacted
+  -d 0bin.redacted
+  -d leanote.redacted
+  -d syncthing.redacted
+  -d deluge.redacted
+  -d linx.redacted
+  -d kibana.redacted
+  -d wallabag.redacted
+
+letsencrypt_rsa_key_size: 4096
+docker_compose_net_ip: "172.28.0.1"
+main_repo_path: "/home/{{ os_user }}/dockerized_hosting"
+repo_files_path: "{{ main_repo_path }}/roles/hosting/docker"
+netdata_repo_path: "/home/{{ os_user }}/git/netdata"
+gpg_secret: "SET IT VIA CLI"
+extra_lvm_vg: "docker"
+extra_lvm_lv: "storage"
+extra_lvm_mountpath: "/docker"
+docker_graph_path: "/docker"
+
+git_configs_repo: "git@gitlab.com:AirsickPayload/configs.git"
+git_hosting_repo: "git@gitlab.com:AirsickPayload/dockerized_hosting.git"
+
+dnsmasq_conf: |
+  cache-size=5000
+  no-dhcp-interface=0.0.0.0
+
+resolv_conf:
+  search: "contaboserver.net"
+  nameservers:
+    - "127.0.0.1"
+    - "79.143.183.252"
+    - "2a02:c205::1:53"

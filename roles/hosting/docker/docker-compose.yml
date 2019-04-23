@@ -1,0 +1,279 @@
+version: '3'
+networks:
+  mynet:
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.28.0.0/16
+        - subnet: fdb2:c25c:2bea:b722::/64
+volumes:
+  giteavolume:
+    external: true
+  mongovolume:
+    external: true
+  vpnvolume:
+    external: true
+  syncthingvolume:
+    external: true
+  publicvolume:
+    external: true
+  kanboardvolume:
+    external: true
+  fluentdvolume:
+    external: true
+  elasticsearchvolume:
+    external: true
+  postgresvolume:
+    external: true
+services:
+  nginx:
+    build:
+      context: "./containers/nginx"
+    image: customnginx
+    container_name: nginx
+    networks:
+      - mynet
+    extra_hosts:
+      - "dockerhost: 172.28.0.1"
+    links:
+      - "gitea:gitea"
+      - "searx:searx"
+      - "ipfs:ipfs"
+      - "syncthing:syncthing"
+      - "deluge:deluge"
+      - "linx:linx"
+      - "kanboard:kanboard"
+      - "leanote:leanote"
+      - "kibana:kibana"
+      - "wallabag:wallabag"
+    volumes:
+      - "/etc/letsencrypt:/etc/letsencrypt"
+    ports:
+      - "80:80"
+      - "443:443"
+    logging: &logging_opts
+      driver: "fluentd"
+      options:
+        fluentd-address: "172.28.0.26"
+
+  wallabag:
+    image: wallabag/wallabag
+    container_name: wallabag
+    networks:
+      - mynet
+    links:
+      - "postgres:postgres"
+    expose:
+      - "80"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=redacted
+      - SYMFONY__ENV__DATABASE_DRIVER=pdo_pgsql
+      - SYMFONY__ENV__DATABASE_HOST=postgres
+      - SYMFONY__ENV__DATABASE_PORT=5432
+      - SYMFONY__ENV__DATABASE_NAME=wallabag
+      - SYMFONY__ENV__DATABASE_USER=wallabag_admin
+      - SYMFONY__ENV__DATABASE_PASSWORD=zredacted
+    logging:
+      <<: *logging_opts
+
+  postgres:
+    image: postgres:9-alpine
+    container_name: postgres
+    networks:
+      - mynet
+    volumes:
+      - postgresvolume:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_PASSWORD=redacted
+      - POSTGRES_USER=postgres
+    logging:
+      <<: *logging_opts
+
+  mongo:
+    image: mongo
+    container_name: mongo
+    networks:
+      mynet:
+        ipv4_address: 172.28.0.25
+    volumes:
+      - mongovolume:/data/db
+    command: mongod --smallfiles --oplogSize 128
+    logging:
+      <<: *logging_opts
+
+  gitea:
+    image: gitea/gitea:1.1
+    container_name: gitea
+    networks:
+      - mynet
+    volumes:
+      - giteavolume:/data
+    expose:
+      - "22"
+      - "3000"
+    ports:
+      - "10022:22"
+    logging:
+      <<: *logging_opts
+
+  openvpn:
+    image: kylemanna/openvpn
+    container_name: openvpn
+    networks:
+      - mynet
+    volumes:
+      - vpnvolume:/etc/openvpn
+    ports:
+      - "1194/udp:1194/udp"
+    cap_add:
+      - NET_ADMIN
+    logging:
+      <<: *logging_opts
+
+  ipfs:
+    image: jbenet/go-ipfs
+    container_name: ipfs_node
+    networks:
+      - mynet
+    volumes:
+      - "~/ipfs/staging:/export"
+      - "~/ipfs/data:/data/ipfs"
+    expose:
+      - "8080"
+      - "5001"
+    ports:
+      - "4001/tcp:4001/tcp"
+    logging:
+      <<: *logging_opts
+
+  searx:
+    image: wonderfall/searx
+    container_name: searx
+    environment:
+      - IMAGE_PROXY=True
+      - BASE_URL=https://searx.redacted
+    networks:
+      - mynet
+    expose:
+      - "8888"
+    logging:
+      <<: *logging_opts
+
+  leanote:
+    build:
+      context: "./containers/leanote"
+    image: customleanote
+    container_name: leanote
+    networks:
+      - mynet
+    expose:
+      - "9000"
+    links:
+      - "mongo:mongo"
+    logging:
+      <<: *logging_opts
+
+  syncthing:
+    build:
+      context: "./containers/syncthing"
+    image: customsyncthing
+    container_name: syncthing
+    volumes:
+      - "syncthingvolume:/home/user"
+      - "publicvolume:/home/user/public_v2"
+    networks:
+      - mynet
+    ports:
+      - "8384:8384"
+      - "22000:22000"
+    logging:
+      <<: *logging_opts
+
+# default creds: admin/deluge
+  deluge:
+    image: linuxserver/deluge
+    container_name: deluge
+    network_mode: "host"
+    volumes:
+      - "~/Downloads:/downloads"
+    environment:
+      - PUID=1000
+      - GUID=1000
+      - TZ=UTC
+    expose:
+      - "8112"
+    logging:
+      <<: *logging_opts
+
+  linx:
+    build:
+      context: "./containers/linx"
+    image: customlinx
+    command: "-sitename=\"Alan Matuszczak's linx instance\" -allowhotlink -fastcgi -realip -remoteuploads"
+    container_name: linx
+    volumes:
+      - "publicvolume:/data/"
+    networks:
+      - mynet
+    expose:
+      - "8080"
+    logging:
+      <<: *logging_opts
+
+  # default credentials: admin/admin
+  kanboard:
+    image: kanboard/kanboard
+    container_name: kanboard
+    volumes:
+      - "kanboardvolume:/var/www/app/data"
+    networks:
+      - mynet
+    expose:
+      - "80"
+    logging:
+      <<: *logging_opts
+
+  fluentd:
+    build: containers/fluentd
+    container_name: fluentd
+    networks:
+      - mynet
+    ports:
+      - "24224:24224"
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:5.4.0
+    container_name: elasticsearch
+    environment:
+      - cluster.name=docker-cluster
+      - xpack.security.enabled=false
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    cap_add:
+      - IPC_LOCK
+    volumes:
+      - elasticsearchvolume:/usr/share/elasticsearch/data
+    networks:
+      - mynet
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:5.4.0
+    container_name: kibana
+    environment:
+      SERVER_NAME: kibana.redacted
+      SERVER_PORT: 5601
+      XPACK_SECURITY_ENABLED: "false"
+    networks:
+      - mynet
+    expose:
+      - "5601"
+    links:
+      - "elasticsearch:elasticsearch"

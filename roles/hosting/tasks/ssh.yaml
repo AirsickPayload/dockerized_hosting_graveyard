@@ -1,0 +1,88 @@
+---
+- name: Disable requiretty - Ansible SSH Pipelining preparation
+  lineinfile:
+    dest: /etc/sudoers
+    line: 'Defaults requiretty'
+    state: absent
+  become: yes
+  vars:
+      ansible_ssh_pipelining: no
+
+- name: Create appriopriate groups
+  group:
+    name: "{{ item }}"
+    state: present
+  with_items:
+    - "{{ os_user }}"
+    - "wheel"
+  become: yes
+
+- name: Allow 'wheel' group to have passwordless sudo
+  lineinfile:
+    dest: /etc/sudoers
+    state: present
+    regexp: '^%wheel'
+    line: '%wheel ALL=(ALL) NOPASSWD: ALL'
+  become: yes
+
+- name: Create the main user
+  user: 
+    name: "{{ os_user }}" 
+    uid: "{{ user_uid }}"
+    groups : "{{ os_user }},wheel"
+    state: present
+    createhome: yes
+    home: "/home/{{ os_user }}"
+  become: yes
+
+- name: Set up multiple authorized keys
+  authorized_key:
+    user: "{{ os_user }}"
+    state: present
+    key: "{{ ssh_key_pub }}"
+  become: yes
+
+- name: Ensure ~/.ssh exists
+  file:
+    path: "/home/{{ os_user }}/.ssh"
+    state: directory
+    owner: "{{ os_user }}"
+    group: "{{ os_user }}"
+    mode: 0700
+
+- name: copy private Gogs deploy keys
+  copy: src=keys/deploy_key dest="/home/{{ os_user }}/.ssh/id_ed25519" mode=0600 owner="{{ os_user }}"
+
+- name: Place the ssh client config
+  copy:
+    src: ssh_config
+    dest: "/home/{{ os_user }}/.ssh/config"
+    mode: 0600
+    owner: "{{ os_user }}"
+    group: "{{ os_user }}"
+
+- name: copy templated sshd config
+  template: src=sshd_config.j2 dest="/etc/ssh/sshd_config" owner="root" group="root" mode=0644
+  become: yes
+
+- name: restart sshd (let's hope it works...)
+  service: name=sshd state=restarted enabled=yes
+  become: yes
+
+- name: Place the MOTD file
+  copy:
+    src: motd
+    dest: /etc/motd_file
+    owner: root
+    group: root
+    mode: 0644
+  become: yes
+
+- name: Ensure that /etc/profile executes the dynamic MOTD script
+  lineinfile:
+    dest: "/home/{{ os_user }}/.zprofile"
+    state: present
+    line: 'cat /etc/motd_file'
+    insertafter: EOF
+    create: yes
+  become: yes

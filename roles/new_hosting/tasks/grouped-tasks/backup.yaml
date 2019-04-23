@@ -1,0 +1,48 @@
+---
+
+- name: Backup setup
+  tags:
+    - backup
+    - never
+  become: yes
+  become_user: "root"
+  block:
+    - name: Copy over the public GPG key
+      copy:
+        src: 'backup-public.key'
+        dest: "{{ duplicity.gpg_key_path }}"
+
+    - name: Copy over the private GPG key
+      copy:
+        src: 'backup-private.key'
+        dest: "{{ duplicity.gpg_key_path }}.secret"
+
+    - name: Import the GPG key
+      shell: "gpg --quiet --import {{ item }}"
+      loop:
+        - "{{ duplicity.gpg_key_path }}"
+       # - "{{ duplicity.gpg_key_path }}.secret"
+
+    - name: ensure .gnupg dir exists
+      file:
+        path: "{{ duplicity.gpg_conf_dir }}"
+        state: directory
+
+    - name: Template gpg config
+      template:
+        src: gpg.conf.j2
+        dest: "{{ duplicity.gpg_conf_dir }}/gpg.conf"
+
+    - name: Duplicity cron entry
+      cron:
+        name: "perform a backup"
+        state: present
+        special_time: daily
+        job: "PASSPHRASE='' duplicity --log-file {{ duplicity.log_file }} --encrypt-key '{{ duplicity.gpg_keyid }}' --full-if-older-than 1W {{ persistent_data_path }} b2://{{ duplicity.backblaze.account_id }}:{{ duplicity.backblaze.application_key }}@{{ duplicity.backblaze.bucket }}"
+
+    - name: Duplicity cleanup entry
+      cron:
+        name: "cleanup backup"
+        state: present
+        special_time: daily
+        job: "duplicity remove-all-but-n-full 2 --force --log-file {{ duplicity.log_file }} b2://{{ duplicity.backblaze.account_id }}:{{ duplicity.backblaze.application_key }}@{{ duplicity.backblaze.bucket }}"

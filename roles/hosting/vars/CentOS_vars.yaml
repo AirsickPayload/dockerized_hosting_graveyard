@@ -1,0 +1,29 @@
+---
+
+global_packages:
+  - git
+  - tmux
+  - libselinux-python
+  - epel-release
+
+netdata_dependencies:
+  - zlib-devel
+  - libuuid-devel
+  - libmnl-devel
+  - gcc
+  - make
+  - git
+  - autoconf
+  - autoconf-archive
+  - autogen
+  - automake
+  - pkgconfig
+  - curl
+
+fail2ban_package: "fail2ban"
+sftp_server_path: "/usr/libexec/openssh/sftp-server"
+python_pip_pkg: "python-pip"
+
+lvm_packages:
+  - lvm2
+  - parted

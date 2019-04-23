@@ -1,0 +1,5 @@
+---
+
+nginx_conf_dir: '/tmp/nginx'
+nginx_main_conf_path: "{{ nginx_conf_dir }}/nginx.conf"
+nginx_servers_dir: "{{ nginx_conf_dir }}/servers"

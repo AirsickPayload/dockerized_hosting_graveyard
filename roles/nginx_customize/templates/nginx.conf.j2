@@ -1,0 +1,59 @@
+#jinja2: lstrip_blocks: True
+user {{ nginx_user }};
+worker_processes {{ worker_processes }};
+error_log {{ error_logpath }};
+pid {{ pidpath }};
+
+events {
+    worker_connections {{ events_worker_connections }};
+}
+
+http {
+  log_format  {{ http.log_format }};
+
+  access_log  {{ http.access_log }};
+
+  {% if http.misc_opts %}
+  {{ http.misc_opts }}
+  {% endif %}
+
+  types_hash_max_size {{ http.types_hash_max_size }};
+  server_names_hash_bucket_size {{ http.server_names_hash_bucket_size }};
+  server_name_in_redirect {{ http.server_name_in_redirect }};
+
+  include             /etc/nginx/mime.types;
+  default_type        application/octet-stream;
+
+  include /etc/nginx/conf.d/*.conf;
+
+  {{ http.map }}
+
+  server_tokens {{ http.server_tokens }};
+  ssl_protocols {{ http.ssl_protocols }};
+  ssl_certificate {{ http.ssl_certificate }};
+  ssl_certificate_key {{ http.ssl_certificate_key }};
+  ssl_session_cache {{ http.ssl_session_cache }};
+  ssl_session_timeout {{ http.ssl_session_timeout }};
+  ssl_prefer_server_ciphers {{ http.ssl_prefer_server_ciphers }};
+  ssl_session_tickets {{ http.ssl_session_tickets }};
+  ssl_dhparam {{ http.ssl_dhparam }};
+  ssl_ciphers {{ http.ssl_ciphers}}
+  ssl_stapling {{ http.ssl_stapling }};
+  ssl_stapling_verify {{ http.ssl_stapling_verify }};
+  client_max_body_size {{ http.client_max_body_size }};
+  proxy_http_version {{ http.proxy.http_version }};
+  {% for header in http.proxy.headers %}
+  proxy_set_header {{ header }};
+  {% endfor %}
+
+{% for header in http.headers %}
+  add_header {{ header }};
+{% endfor %}
+
+  server {
+    listen {{ redirect_server.listen }};
+    server_name {{ redirect_server.name }};
+
+    {{ redirect_server.opts }}
+  }
+}

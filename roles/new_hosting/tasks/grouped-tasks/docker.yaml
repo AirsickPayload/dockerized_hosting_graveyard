@@ -1,0 +1,54 @@
+---
+
+- name: Docker setup
+  become: yes
+  tags:
+    - docker
+    - never
+  block:
+
+    - name: Check if docker command exists
+      shell: command -v docker >/dev/null 2>&1
+      ignore_errors: yes
+      register: docker_check
+
+    - name: Install pip
+      package:
+        name: "{{ python_pip_pkg }}"
+        state: present
+
+    - name: Copy Docker repo file (RedHat-based)
+      copy:
+        src: "docker_{{ ansible_distribution }}.repo"
+        dest: /etc/yum.repos.d/docker.repo
+      when: docker_check is failed and ansible_os_family == "RedHat"
+
+    - name: Install docker-engine and docker-compose
+      package:
+        name: "{{ pkg }}"
+        state: present
+      with_items:
+        - docker-ce
+        - docker-compose
+      loop_control:
+        loop_var: pkg
+
+    - name: Add docker group
+      group: name=docker state=present
+
+    - name: Ensure that user is in the 'docker' group
+      user:
+        name: "{{ os_user }}"
+        group: "{{ group }}"
+        append: yes
+      with_items:
+        - docker
+      loop_control:
+        loop_var: group
+
+    - name: Enable docker service
+      systemd:
+        name: docker
+        state: restarted
+        enabled: yes
+        daemon_reload: yes

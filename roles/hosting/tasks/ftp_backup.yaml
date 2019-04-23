@@ -1,0 +1,54 @@
+---
+
+- include_vars: ftp_vars.yaml
+
+- name: Ensure that the temporary backup directory exists
+  file:
+    path: "/home/{{ os_user }}/backup"
+    state: directory
+    owner: "{{ os_user }}"
+    group: "{{ os_user }}"
+    mode: 0700
+
+- name: stop containers
+  shell: docker-compose stop
+  args:
+    chdir: "{{ repo_files_path }}"
+
+- name: Create an tar.xz backup archive for each docker volume
+  shell: >
+    tar cf - {{ item }}/_data | xz -T 4 -1 -c > /home/{{ os_user }}/backup/{{ item }}_$(date +%Y-%m-%d).tar.xz; \
+    chown {{ os_user }} *
+  args:
+    chdir: "{{ docker_graph_path }}/volumes"
+  become: yes
+  with_items: "{{ docker_volumes }}"
+
+- name: Encrypt every archive using gpg (and cleanup the unencrypted ones)
+  shell: "gpg2 --always-trust --cipher-algo AES256 --encrypt-files -r redacted *.tar.xz && rm -rf *.tar.xz"
+  args:
+    chdir: "/home/{{ os_user }}/backup"
+
+- name: Start the fluentd container as the first one
+  shell: docker-compose up -d fluentd
+  args:
+    chdir: "{{ repo_files_path }}"
+
+- name: start containers
+  shell: docker-compose up -d
+  args:
+    chdir: "{{ repo_files_path }}"
+
+- name: Upload the backups to FTP
+  shell: >
+    lftp -e "set ssl:verify-certificate no;set ftp:ssl-allow true; set net:reconnect-interval-base 5 ; set net:reconnect-interval-multiplier 1; set net:timeout 10; set net:max-retries 2; \
+    cd /Private/backup;ls; mput *.gpg ; exit" -u {{ ftp_user }},{{ ftp_password }} {{ ftp_addr }}
+  args:
+    chdir: "/home/{{ os_user }}/backup"
+  become: yes
+
+- name: Remove temp dir
+  file:
+    path: "/home/{{ os_user }}/backup"
+    state: absent
+  become: yes

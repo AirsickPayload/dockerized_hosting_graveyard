@@ -1,0 +1,53 @@
+- name: clone oh-my-zsh repo
+  git: 
+    repo: https://github.com/robbyrussell/oh-my-zsh.git
+    dest: "/home/{{ os_user }}/.oh-my-zsh"
+
+- name: install SELinux python bindings
+  become: yes
+  dnf: name=libselinux-python state=latest
+  when: ansible_distribution == "Fedora"
+
+- name: Install zsh
+  package:
+    name: zsh
+    state: present
+  become: yes
+
+- name: change default shell to zsh
+  become: yes
+  user: name={{ os_user }} state=present shell=/bin/zsh
+
+- name: Clone the repo with personalized configuration
+  git:
+    repo: "{{ git_configs_repo }}"
+    dest: "/home/{{ os_user }}/git/configs"
+    update: yes
+    ssh_opts: "-o StrictHostKeyChecking=no"
+
+# Since I do not want to [always] store the 'config' repo locally - repo is checked out on the provisioning machine
+# - we have to pull the template from the provisioned machine
+- name: Fetch the zsh template from a single remote host
+  run_once : true
+  fetch:
+    src: "/home/{{ os_user }}/git/configs/zshrc.j2"
+    dest: /tmp/zshrc.j2
+    flat: yes
+    fail_on_missing: yes
+
+- name: copy personalized zshrc
+  become: yes
+  template: 
+    src: "/tmp/zshrc.j2" 
+    dest: "/home/{{ os_user }}/.zshrc" 
+    owner: "{{ os_user }}"
+    mode: 0644
+
+- name: copy personalized aliases and general shell extras
+  become: yes
+  copy: 
+    src: "/home/{{ os_user }}/git/configs/shell_extras.sh" 
+    dest: "/home/{{ os_user }}/.shell_extras.sh" 
+    owner: "{{ os_user }}" 
+    mode: 0644
+    remote_src: yes

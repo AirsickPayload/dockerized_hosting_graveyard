@@ -1,0 +1,47 @@
+---
+
+- name: Stop the running containers!
+  shell: docker-compose stop
+  args:
+    chdir: "{{ repo_files_path }}"
+
+- name: Update all non-custom images
+  shell: docker pull {{ item }}
+  args:
+    chdir: "{{ repo_files_path }}"
+  with_items: "{{ docker_noncustom_images }}"
+  register: update_noncustom
+
+- debug: var=update_noncustom.stdout_lines
+
+- name: <Re>build all custom containers
+  shell: docker-compose build
+  args:
+    chdir: "{{ repo_files_path }}"
+  register: build_custom
+
+- debug: var=build_custom.stdout_lines
+
+- name: Start the fluentd container as the first one
+  shell: docker-compose up -d fluentd
+  args:
+    chdir: "{{ repo_files_path }}"
+
+- name: Start the containers again
+  shell: docker-compose up -d
+  args:
+    chdir: "{{ repo_files_path }}"
+
+- name: Clean the unnecessary containers
+  shell: docker rm $(docker ps -q -f status=exited) || true
+  ignore_errors: True
+  register: container_clean
+
+- debug: var=container_clean.stdout_lines
+
+- name: Clean the unnecessary images
+  shell: docker rmi $(docker images --filter "dangling=true" -q --no-trunc) || true
+  ignore_errors: True
+  register: image_clean
+
+- debug: var=image_clean.stdout_lines

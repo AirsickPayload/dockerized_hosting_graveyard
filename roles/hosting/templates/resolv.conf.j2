@@ -1,0 +1,9 @@
+# File managed by Ansible
+
+{% if resolv_conf.search|length %}
+search {{ resolv_conf.search }}
+{% endif %}
+
+{% for item in resolv_conf.nameservers %}
+nameserver {{ item }}
+{% endfor %}

@@ -1,0 +1,17 @@
+---
+
+# - include_tasks: "{{ item }}"
+#   tags:
+#     - always
+#   with_fileglob:
+#     - grouped-tasks/*
+
+- include_tasks: "grouped-tasks/{{ item }}.yaml"
+  with_items:
+    - 'ssh'
+    - 'firewall'
+    - 'docker'
+    - 'compose-runtime'
+    - 'backup'
+  tags:
+    - always

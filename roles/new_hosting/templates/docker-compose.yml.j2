@@ -1,0 +1,37 @@
+#jinja2: lstrip_blocks: True
+{% set service_iterable_elems = [ 'networks', 'volumes', 'ports', 'environment', 'labels', 'links', 'expose' ] %}
+
+version: '3.3'
+networks:
+{% for network in compose_networks %}
+  {{ network }}:
+    {{ compose_networks[network] }}
+{% endfor %}
+
+services:
+
+{% for service in compose_services %}
+  {{ service }}:
+    image: {{ compose_services[service]['image'] }}
+    container_name: {{ compose_services[service]['container_name'] }}
+    {% if compose_services[service]['command'] is defined %}
+    command: {{ compose_services[service]['command'] }}
+    {% endif %}
+    {% for enum_item in service_iterable_elems %}
+      {% if compose_services[service][enum_item] is defined %}
+    {{ enum_item }}:
+        {% for iterable_item in compose_services[service][enum_item] %}
+      - {{ iterable_item }}
+        {% endfor %}
+      {% endif %}
+    {% endfor %}
+    {% if compose_services[service]['misc'] is defined %}
+    {{ compose_services[service]['misc'] }}
+    {% endif %}
+
+{% endfor %}
+
+volumes:
+  {% for volume in compose_volumes %}
+  {{ volume }}
+  {% endfor %}

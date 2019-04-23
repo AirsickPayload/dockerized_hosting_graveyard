@@ -1,0 +1,76 @@
+---
+- name: set distro-specific variables
+  include_vars: "{{ ansible_distribution }}_vars.yaml"
+  tags:
+    - always
+
+- include: ssh.yaml
+  tags:
+    - ssh
+
+- include: rpmfusion.yaml
+  tags:
+    - repos
+
+- include: docker.yaml
+  tags:
+    - docker_install
+  become: yes
+
+- include: letsencrypt.yaml
+  tags:
+    - letsencrypt
+
+- include: docker_hosting.yaml
+  tags:
+    - docker_setup
+
+- include: zsh.yaml
+  tags:
+    - zsh
+
+- include: firewall.yaml
+  tags:
+    - firewall
+
+- include: fail2ban.yaml
+  tags:
+    - fail2ban
+  become: yes
+
+- include: tmux.yaml
+  tags:
+    - tmux
+
+- include: container_update.yaml
+  tags:
+    - docker_update
+
+# REMEMBER TO PASS THE VAULT PASSWORD!
+- include: gpg_setup.yaml
+  tags:
+    - gpg_setup
+
+# VAULT PASS REQUIRED
+- include: ftp_backup.yaml
+  tags:
+    - ftp_backup
+
+- include: setup_extra_lvm.yaml
+  become: yes
+  tags:
+    - extra_lvm
+
+- include: global_dependencies.yaml
+  become: yes
+  tags:
+    - global_dependencies
+
+- include: netdata.yaml
+  tags:
+    - netdata
+
+- include: dnsmasq.yaml
+  become: yes
+  tags:
+    - dnsmasq

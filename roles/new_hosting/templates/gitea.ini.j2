@@ -1,0 +1,37 @@
+APP_NAME = Gitea: Alan Matuszczak's instance
+RUN_USER = git
+RUN_MODE = prod
+
+[ui.meta]
+AUTHOR = Alan Matuszczak
+
+[service]
+DISABLE_REGISTRATION = true
+REQUIRE_SIGNIN_VIEW = true
+
+[server]
+SSH_DOMAIN = git.{{ server.domain }}
+HTTP_PORT  = 3000
+ROOT_URL   = https://git.{{ server.domain }}:{{ server.ports.https }}/
+DISABLE_SSH = false
+SSH_PORT = 1044
+ENABLE_GZIP = true
+
+[repository]
+DISABLE_HTTP_GIT = true
+DEFAULT_PRIVATE = private
+
+[database]
+DB_TYPE = postgres
+HOST = postgres-gitea:5432
+NAME = gitea
+USER = {{ credentials.postgres.user }}
+PASSWD = {{ credentials.postgres.password }}
+SSL_MODE = disable
+
+[security]
+INSTALL_LOCK = true
+SECRET_KEY = "pr92g83yeh2iouyr3t7g783982hurg9y8t677832439oieljfjkhjgvhdgiuhoiduiy34uutgeiwhfocohjdfiyuge7rieweo8irjkbhfgvuder78432riu3whj"
+
+[other]
+SHOW_FOOTER_VERSION = false

@@ -1,0 +1,7 @@
+- include: firewall/redhat.yaml
+  become: yes
+  when: ansible_os_family == "RedHat"
+
+- include: firewall/ubuntu.yaml
+  become: yes
+  when: ansible_distribution == "Ubuntu"

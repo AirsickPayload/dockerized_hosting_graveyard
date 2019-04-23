@@ -1,0 +1,17 @@
+#jinja2: lstrip_blocks: True
+server {
+  listen {{ item.value.listen }};
+  server_name {{ item.value.name }};
+  {% if item.value.ssl == 'true' %}
+  ssl on;
+  {% endif %}
+
+  {% if item.value.locations is defined %}
+    {% for location in item.value.locations %}
+      location {{ location.path }} {
+        {{ location.opts }}
+      }
+
+    {% endfor %}
+  {% endif %}
+}

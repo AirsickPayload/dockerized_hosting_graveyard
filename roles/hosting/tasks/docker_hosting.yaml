@@ -1,0 +1,38 @@
+---
+
+- name: Clone the repo dockerized_hosting repo
+  git:
+    repo: "{{ git_hosting_repo }}"
+    dest: "{{ main_repo_path }}"
+    update: yes
+    ssh_opts: "-o StrictHostKeyChecking=no"
+
+- name: check if docker data volumes exists
+  shell: docker volume ls | grep "{{ item }}" -q
+  with_items: "{{ docker_volumes }}"
+  ignore_errors: yes
+  register: result
+
+- name: create docker data volumes
+  shell: docker volume create --name "{{ item }}"
+  with_items: "{{ docker_volumes }}"
+  when: result|failed
+
+- name: Create host mount directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ os_user }}"
+    group: "{{ os_user }}"
+  with_items: "{{ docker_host_mounts_directories }}"
+
+- name: Update all non-custom images
+  shell: "docker pull {{ item }}"
+  args:
+    chdir: "{{ repo_files_path }}"
+  with_items: "{{ docker_noncustom_images }}"
+
+- name: Build all custom images
+  shell: docker-compose build
+  args:
+    chdir: "{{ repo_files_path }}"

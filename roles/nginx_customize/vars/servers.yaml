@@ -1,0 +1,103 @@
+---
+
+servers:
+  wallabag:
+    listen: '443 ssl http2'
+    name: 'wallabag.redacted'
+    ssl: 'true'
+    locations:
+      - path: '/'
+        opts: 'proxy_pass http://wallabag;'
+  gitea:
+    listen: '443 ssl http2'
+    name: 'gitea.redacted'
+    ssl: 'true'
+    locations:
+      - path: '/'
+        opts: 'proxy_pass http://gitea:3000;'
+  searx:
+    listen: '443 ssl http2'
+    name: 'searx.redacted'
+    ssl: 'true'
+    locations:
+      - path: '/'
+        opts: 'proxy_pass http://searx:8888;'
+  leanote:
+    listen: '443 ssl http2'
+    name: 'leanote.redacted'
+    ssl: 'true'
+    locations:
+      - path: '/'
+        opts: 'proxy_pass http://leanote:9000;'
+  deluge:
+    listen: '443 ssl http2'
+    name: 'deluge.redacted'
+    ssl: 'true'
+    locations:
+      - path: '/'
+        opts: 'proxy_pass http://dockerhost:8112;'
+  kanboard:
+    listen: '443 ssl http2'
+    name: 'kanboard.redacted'
+    ssl: 'true'
+    locations:
+      - path: '/'
+        opts: 'proxy_pass http://kanboard;'
+  kibana:
+    listen: '443 ssl http2'
+    name: 'kibana.redacted'
+    ssl: 'true'
+    locations:
+      - path: '/'
+        opts: |
+          proxy_pass http://kibana:5601;
+                  auth_basic "Restricted Content";
+                  auth_basic_user_file /etc/nginx/.htpasswd;
+  syncthing:
+    listen: '443 ssl http2'
+    name: 'syncthing.redacted'
+    ssl: 'true'
+    locations:
+      - path: '/'
+        opts: |
+          proxy_pass http://dockerhost:8384;
+                  auth_basic "Restricted Content";
+                  auth_basic_user_file /etc/nginx/.htpasswd;
+  linx:
+    listen: '443 ssl http2'
+    name: 'linx.redacted'
+    ssl: 'true'
+    locations:
+      - path: '= /'
+        opts: |
+          fastcgi_pass linx:8080;
+                  include fastcgi_params;
+                  auth_basic "Restricted Content";
+                  auth_basic_user_file /etc/nginx/.htpasswd;
+      - path: '/'
+        opts: |
+          fastcgi_pass linx:8080;
+                  include fastcgi_params;
+                  auth_basic "off";
+  monit:
+    listen: '443 ssl http2'
+    name: 'monit.redacted'
+    ssl: 'true'
+    locations:
+      - path: '/'
+        opts: |
+          proxy_pass http://dockerhost:19999;
+                  auth_basic "Restricted Content";
+                  auth_basic_user_file /etc/nginx/.htpasswd;
+  ipfs:
+    listen: '443 ssl http2'
+    name: 'ipfs.redacted'
+    ssl: 'true'
+    locations:
+      - path: '/'
+        opts: 'proxy_pass http://ipfs:8080;'
+      - path: '/webui'
+        opts: |
+          proxy_pass http://ipfs:5001;
+                  auth_basic "Restricted Content";
+                  auth_basic_user_file /etc/nginx/.htpasswd;

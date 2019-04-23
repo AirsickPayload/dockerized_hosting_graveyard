@@ -1,0 +1,8 @@
+---
+
+server:
+  domain: 'docker.localhost'
+  ports:
+    http: 8081
+    https: 8082
+    traefik_dashboard: 8080

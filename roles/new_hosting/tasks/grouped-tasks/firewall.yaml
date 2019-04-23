@@ -1,0 +1,50 @@
+---
+
+- name: Firewall setup
+  become: yes
+  tags:
+    - firewall
+    - never
+  block:
+    - name: Ensure firewalld is installed
+      package:
+        name: firewalld
+        state: latest
+      become: yes
+
+    - name: install python bindings for firewalld
+      become: yes
+      dnf:
+        name: python-firewall
+        state: present
+      when: ansible_distribution_version <= 27
+
+    - debug: var=firewall_open_ports
+
+    - name: open necessary ports
+      become: yes
+      firewalld:
+        zone: public
+        port: "{{ service.value.port }}/{{ service.value.proto }}"
+        permanent: true
+        state: enabled
+      with_dict: "{{ firewall_open_ports }}"
+      loop_control:
+        loop_var: service
+
+    - name: close ports
+      become: yes
+      firewalld:
+        zone: public
+        port: "{{ service.value.port }}/{{ service.value.proto }}"
+        permanent: true
+        state: disabled
+      with_dict: "{{ firewall_closed_ports }}"
+      loop_control:
+        loop_var: service
+
+    - name: restart firewalld
+      become: yes
+      service: name=firewalld state=restarted
+
+

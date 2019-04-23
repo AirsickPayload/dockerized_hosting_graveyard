@@ -1,0 +1,27 @@
+---
+
+netdata_dependencies:
+  - zlib1g-dev
+  - uuid-dev
+  - libmnl-dev
+  - gcc
+  - make
+  - git
+  - autoconf
+  - autoconf-archive
+  - autogen
+  - automake
+  - pkg-config
+  - curl
+
+fail2ban_package: "fail2ban"
+sftp_server_path: "/usr/lib/openssh/sftp-server"
+python_pip_pkg: "python-pip"
+
+lvm_packages:
+  - lvm2
+  - thin-provisioning-tools
+  - parted
+  - xfsprogs
+
+docker_service_file: "/lib/systemd/system/docker.service"

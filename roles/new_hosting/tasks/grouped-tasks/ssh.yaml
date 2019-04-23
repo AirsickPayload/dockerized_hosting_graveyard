@@ -1,0 +1,70 @@
+---
+
+- name: SSH/User setup
+  become: yes
+  tags:
+    - never
+    - ssh
+  block:
+    - name: Disable requiretty - Ansible SSH Pipelining preparation
+      lineinfile:
+        dest: /etc/sudoers
+        line: 'Defaults requiretty'
+        state: absent
+      vars:
+          ansible_ssh_pipelining: no
+
+    - name: Create appriopriate groups
+      group:
+        name: "{{ group }}"
+        state: present
+      with_items:
+        - "{{ os_user }}"
+        - "wheel"
+      loop_control:
+        loop_var: group
+
+    - name: Allow 'wheel' group to have passwordless sudo
+      lineinfile:
+        dest: /etc/sudoers
+        state: present
+        regexp: '^%wheel'
+        line: '%wheel ALL=(ALL) NOPASSWD: ALL'
+
+    - name: Create the main user
+      user:
+        name: "{{ os_user }}"
+        uid: "{{ user_uid }}"
+        groups : "{{ os_user }},wheel"
+        state: present
+        createhome: yes
+        home: "/home/{{ os_user }}"
+
+    - name: Set up authorized keys
+      authorized_key:
+        user: "{{ os_user }}"
+        state: present
+        key: "{{ ssh_key_pub }}"
+
+    - name: copy templated sshd config
+      template: src=sshd_config.j2 dest="/etc/ssh/sshd_config" owner="root" group="root" mode=0644
+      become: yes
+
+    - name: restart sshd (let's hope it works...)
+      service: name=sshd state=restarted enabled=yes
+
+    - name: Place the MOTD file
+      copy:
+        src: motd
+        dest: /etc/motd_file
+        owner: root
+        group: root
+        mode: 0644
+
+    - name: Ensure MOTD gets printed
+      lineinfile:
+        dest: "/home/{{ os_user }}/.bashrc"
+        state: present
+        line: 'cat /etc/motd_file'
+        insertafter: EOF
+        create: yes

@@ -1,0 +1,89 @@
+---
+
+- name: Install lvm/parted packages
+  package:
+    name: "{{ item }}"
+    state: present
+  with_items: "{{ lvm_packages }}"
+
+- name: Create the LVM mountpath
+  file:
+    path: "{{ extra_lvm_mountpath }}"
+    state: directory
+
+- name: Initialize an empty list of unformatted block devices
+  set_fact:
+    unformatted: []
+
+- name: Get a list of all block devices
+  shell: "ls /dev/ | egrep \"^(sd|vd)[[:alpha:]]*$\""
+  register: block_devices
+
+- debug:
+    msg: "Found device: /dev/{{ item }}"
+  with_items: "{{ block_devices.stdout_lines }}"
+
+
+- name: Check if any of the found block devices is unformatted
+  shell: >
+    file -s /dev/{{ item }} | egrep -q '.*data$' ; if [ $? -ne 0 ];
+    then printf 'formatted\n' ;
+    else printf '/dev/{{ item }}'; fi
+  with_items: "{{ block_devices.stdout_lines }}"
+  register: unformatted_check_raw
+
+- name: Add each unformatted device to a separate list
+  set_fact:
+    unformatted: "{{ unformatted }} + ['{{ item.stdout }}']"
+  with_items: "{{ unformatted_check_raw.results }} "
+  when: "'{{ item.stdout }}' != 'formatted' "
+
+- debug:
+    msg: "Found unformatted device(s): {{ item }}"
+  with_items: "{{ unformatted }}"
+
+- name: "Create a MSDOS partition table on unformatted block devices"
+  shell: "parted -s {{ item }} mklabel msdos"
+  with_items: "{{ unformatted }}"
+
+- name: "Create a single partiton on unformatted block devices (fs provided in the command is not important)"
+  shell: "parted -s {{ item }} mkpart primary xfs 0% 100%"
+  with_items: "{{ unformatted }}"
+
+- name: "Set LVM flags"
+  shell: "parted -s {{ item }} set 1 lvm on"
+  with_items: "{{ unformatted }}"
+
+- name: Create LVM Physical Volumes
+  shell: "pvcreate {{ item }}1"
+  with_items: "{{ unformatted }}"
+
+- name: Extend (or create, if necessary) VG with new PVs
+  shell: >
+    vgs | grep -q {{ extra_lvm_vg }}; if [ $? -eq 0 ] ;
+    then vgextend {{ extra_lvm_vg }} {{ item }}1 ;
+    else vgcreate {{ extra_lvm_vg }} {{ item }}1 ; fi
+  with_items: "{{ unformatted }}"
+
+- name: Ensure that LV exists and then extend it with whole VG
+  shell: >
+    lvs | grep -q {{ extra_lvm_lv }}; if [ $? -ne 0 ] ;
+    then lvcreate -l 100%VG -n {{ extra_lvm_lv }} {{ extra_lvm_vg }} ;
+    else lvextend -l 100%VG /dev/mapper/{{ extra_lvm_vg }}-{{ extra_lvm_lv }} ; fi
+  when: "{{ unformatted | length | int }} > 0"
+
+- name: Create or extend XFS Filesystem on LV
+  shell: >
+    file -s /dev/mapper/{{ extra_lvm_vg }}-{{ extra_lvm_lv }} | grep -q 'XFS'; if [$ ? -eq 0 ] ;
+    then xfs_growfs -d /dev/mapper/{{ extra_lvm_vg }}-{{ extra_lvm_lv }} ;
+    else mkfs.xfs /dev/mapper/{{ extra_lvm_vg }}-{{ extra_lvm_lv }} ; fi
+  when: "{{ unformatted | length | int }} > 0"
+
+- name: Create fstab entry
+  mount:
+    src: "/dev/mapper/{{ extra_lvm_vg }}-{{ extra_lvm_lv }}"
+    name: "{{ extra_lvm_mountpath }}"
+    fstype: xfs
+    opts: nofail
+    state: mounted
+  when: "{{ block_devices.stdout_lines | length | int }} >= 2"

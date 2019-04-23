@@ -1,0 +1,16 @@
+- name: Clone the repo with personalized configuration
+  git:
+    repo: "{{ git_configs_repo }}"
+    dest: "/home/{{ os_user }}/git/configs"
+    update: yes
+    ssh_opts: "-o StrictHostKeyChecking=no"
+
+- name: copy tmux conf to user's directory
+  become: yes
+  copy: 
+    src: "/home/{{ os_user }}/git/configs/tmux.conf"
+    dest: "/home/{{ os_user }}/.tmux.conf"
+    owner: "{{ os_user }}"
+    group: "{{ user}}"
+    mode: 0644
+    remote_src: yes

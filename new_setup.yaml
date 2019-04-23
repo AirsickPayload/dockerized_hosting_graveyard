@@ -1,0 +1,7 @@
+- hosts: all
+  tasks:
+    - import_role:
+        name: new_hosting
+        tasks_from: global_dependencies.yaml
+    - import_role:
+        name: new_hosting

@@ -1,0 +1,33 @@
+---
+
+- name: Include vars files
+  include_vars: "{{ item }}"
+  with_items:
+    - main_config.yaml
+    - servers.yaml
+
+- name: Remove the current nginx servers dir
+  file:
+    path: "{{ nginx_servers_dir }}"
+    state: absent
+
+- name: (Re)create the main && servers directory
+  file:
+    path: "{{ item }}"
+    state: directory
+  with_items:
+    - "{{ nginx_conf_dir }}"
+    - "{{ nginx_servers_dir }}"
+
+- name: Create the main Nginx config file
+  template:
+    src: nginx.conf.j2
+    dest: "{{ nginx_main_conf_path }}"
+    mode: 0644
+
+- name: Create the server files
+  template:
+    src: server.conf.j2
+    dest: "{{ nginx_servers_dir }}/{{ item.key }}.conf"
+    mode: 0644
+  with_dict: "{{ servers }}"

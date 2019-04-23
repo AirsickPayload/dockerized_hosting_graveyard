@@ -1,0 +1,83 @@
+---
+
+- name: Compose Runtime setup
+  tags:
+    - compose-runtime
+    - never
+  become: yes
+  become_user: "root"
+  block:
+    - name: Make sure compose-runtime directory is created
+      file:
+        path: "{{ directory }}"
+        state: directory
+        mode: 0777
+      with_items: "{{ compose_required_directories }}"
+      loop_control:
+        loop_var: directory
+
+    - name: Ensure empty files exist
+      file:
+        path: "{{ empty_file }}"
+        state: touch
+        mode: 0600
+      with_items: "{{ compose_required_empty_files }}"
+      loop_control:
+        loop_var: empty_file
+
+    - name: Create directories for service templates
+      file:
+        path: "{{ service.dest | dirname }}"
+        state: directory
+        owner: "root"
+        group: "docker"
+        mode: 0777
+      become_user: root
+      loop: "{{ service_configuration_templates }}"
+      loop_control:
+        loop_var: service
+
+    - name: Template service configurations
+      template:
+        dest: "{{ template.dest }}" # required. Location to render the template to on the remote machine.
+        src: "{{ template.src }}" # required. Path of a Jinja2 formatted template on the Ansible controller. This can be a relative or absolute path.
+        owner: "root"
+        group: "docker"
+        mode: 0666
+      become_user: root
+      loop: "{{ service_configuration_templates }}"
+      loop_control:
+        loop_var: template
+
+    - name: Copy dir with custom-image Dockerfiles
+      copy:
+        dest: "{{ compose_runtime_path }}"
+        src: custom-images
+        owner: "root"
+        group: "docker"
+        mode: 0777
+
+    - name: Template docker-compose
+      template:
+        dest: "{{ compose_runtime_path }}/docker-compose.yml"
+        src: 'docker-compose.yml.j2'
+        owner: 'root'
+        group: 'docker'
+        mode: 0666
+
+    - name: Create htpasswd for traefik
+      htpasswd:
+        path: "{{ compose_runtime_path }}/htpasswd/dashboard"
+        name: "{{ traefik.dashboard.user }}"
+        password: "{{ traefik.dashboard.password }}"
+        state: present
+
+    - name: Pull images
+      command: /usr/bin/docker-compose pull --parallel --ignore-pull-failures
+      args:
+        chdir: "{{ compose_runtime_path }}"
+
+    - name: Run docker-compose
+      command: /usr/bin/docker-compose up -d --force-recreate
+      args:
+        chdir: "{{ compose_runtime_path }}"

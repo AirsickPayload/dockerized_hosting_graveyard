@@ -1,0 +1,22 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.configure("2") do |config|
+  config.vm.box = "generic/fedora27"
+  config.vm.define "localhost"
+  config.vm.hostname = "localhost"
+  config.vm.network "public_network"
+  config.vm.network "forwarded_port", guest: 8081, host: 8081
+  config.vm.network "forwarded_port", guest: 8082, host: 8082
+   config.vm.provider "virtualbox" do |vb|
+     vb.memory = "2048"
+     vb.name = "new_hosting_test"
+   end
+  config.vm.provision "ansible" do |ansible|
+    ansible.playbook = "../new_setup.yaml"
+    ansible.extra_vars = "vars_override.yaml"
+    ansible.raw_arguments  = [
+      "--tags=docker,ssh,compose-runtime"
+    ]
+  end
+end

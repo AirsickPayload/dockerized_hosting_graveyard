@@ -1,0 +1,334 @@
+---
+
+os_user: "airsickpayload"
+user_uid: 1005
+home_path: "/home/{{ os_user }}"
+ssh_key_pub: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPGTKTGtn4C6XwHkK6YjhukPRii8DkLoX+I1Yusbsrfx alan@fedora"
+
+compose_runtime_path: "{{ home_path }}/compose_runtime"
+persistent_data_path: "{{ compose_runtime_path }}/persistent_data"
+custom_images_path: "{{ compose_runtime_path }}/custom-images"
+
+duplicity:
+  backblaze:
+    account_id: 'redacted'
+    application_key: 'redacted'
+    bucket: 'redacted'
+  #gpg --list-keys --with-colons, 5th column
+  gpg_keyid: 'redacted'
+  gpg_key_path: '/root/public.key'
+  gpg_conf_dir: '/root/.gnupg'
+  log_file: "{{ home_path }}/duplicity.log"
+
+compose_required_directories:
+  - "{{ compose_runtime_path }}"
+  - "{{ compose_runtime_path }}/htpasswd"
+  - "{{ persistent_data_path }}/radicale/data"
+  - "{{ persistent_data_path }}/radicale/config"
+  - "{{ persistent_data_path }}/syncthing"
+  - "{{ persistent_data_path }}/gitea"
+  - "{{ persistent_data_path }}/postgres"
+  - "{{ persistent_data_path }}/shaarli/data"
+  - "{{ persistent_data_path }}/openvpn"
+  - "{{ persistent_data_path }}/linx"
+
+compose_required_empty_files:
+  - "{{ compose_runtime_path }}/acme.json"
+
+server:
+  domain: 'redacted'
+  ports:
+    http: 80
+    https: 443
+    traefik_dashboard: 8080
+
+credentials:
+  traefik:
+    user: 'airsickpayload'
+    password: 'redacted'
+  radicale:
+    user: 'airsickpayload'
+    password: 'redactedS'
+  postgres:
+    user: 'gitea'
+    password: 'redacted'
+  linx:
+    # 'X_lubieplacki01@' - scrypt'd
+    apikey: 'redacted'
+
+service_configuration_templates:
+  - { src: 'traefik.toml.j2', dest: "{{ compose_runtime_path }}/traefik.toml" }
+  - { src: 'gitea.ini.j2', dest: "{{ persistent_data_path }}/gitea/gitea/conf/app.ini" }
+  - { src: 'radicale.j2', dest: "{{ persistent_data_path }}/radicale/config/config" }
+  - { src: 'radicale-htpasswd.j2', dest: "{{ persistent_data_path }}/radicale/config/htpasswd" }
+  - { src: 'linx-api-key.j2', dest: "{{ persistent_data_path }}/linx/apikey" }
+
+traefik:
+  acme:
+    enabled: true
+    email: 'redacted'
+    storage: 'acme.json'
+    entrypoint: 'https'
+    challenge: |
+      [acme.httpChallenge]
+      entryPoint = "http"
+  dockerOpts: |
+    domain = "{{ server.domain }}"
+    watch = true
+    exposedbydefault = false
+
+  defaultEntrypoints:
+    - "http"
+    - "https"
+
+  dashboard:
+    enabled: 'true'
+    entrypoint: 'traefik'
+    user: 'dashboard'
+    password: 'testing'
+
+  entrypoints:
+    dashboard: |
+      [entryPoints.traefik]
+          address = ":{{ server.ports.traefik_dashboard }}"
+    http: |
+      [entryPoints.http]
+          address = ":{{ server.ports.http }}"
+          [entryPoints.http.redirect]
+            entryPoint = "https"
+    https: |
+      [entryPoints.https]
+          address = ":{{ server.ports.https }}"
+          [entryPoints.https.tls]
+          MinVersion = "VersionTLS12"
+
+compose_networks:
+  hosting: |
+    ipam:
+            driver: default
+            config:
+              - subnet: 172.28.0.0/16
+              - subnet: fdb2:c25c:2bea:b722::/64
+
+compose_volumes:
+  - 'portainer_data:'
+
+compose_services:
+
+  linx:
+    build:
+      context: "{{ custom_images_path }}/linx"
+    image: linx:custom
+    command: "-sitename=\"Personal linx instance\" -allowhotlink -realip -authfile /data/apikey"
+    container_name: linx
+    volumes:
+      - "{{ persistent_data_path }}/linx:/data/"
+    networks:
+      - hosting
+    expose:
+      - "8080"
+    misc: |
+        build:
+              context: "{{ custom_images_path }}/linx"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.backend=linx"
+      - "traefik.frontend.rule=Host:linx.{{ server.domain }}"
+      - "traefik.port=8080"
+      - "traefik.frontend.passHostHeader=true"
+
+  radicale:
+    image: 'tomsquest/docker-radicale:2.1.9.0'
+    container_name: 'radicale'
+    networks:
+      - hosting
+    volumes:
+      - "{{ persistent_data_path }}/radicale/data:/data"
+      - "{{ persistent_data_path }}/radicale/config:/config:ro"
+    environment:
+      - "UID={{ user_uid }}"
+      - "GID={{ user_uid }}"
+    expose:
+      - "5232"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.backend=radicale"
+      - "traefik.frontend.rule=Host:radicale.{{ server.domain }}"
+      - "traefik.port=5232"
+      - "traefik.frontend.passHostHeader=true"
+
+  openvpn:
+    image: 'kylemanna/openvpn:latest'
+    container_name: 'openvpn'
+    networks:
+      - 'hosting'
+    volumes:
+      - "{{ persistent_data_path }}/openvpn:/etc/openvpn"
+    ports:
+      - "1194:1194/udp"
+    misc: |
+      cap_add:
+          - NET_ADMIN
+    labels:
+      - "traefik.enabled=false"
+
+  shaarli:
+    image: shaarli/shaarli:master
+    container_name: shaarli
+    networks:
+      - 'hosting'
+    volumes:
+      - "{{ persistent_data_path }}/shaarli/data:/var/www/shaarli/data"
+    expose:
+      - "80"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.backend=shaarli"
+      - "traefik.frontend.rule=Host:shaarli.{{ server.domain }}"
+      - "traefik.port=80"
+      - "traefik.frontend.passHostHeader=true"
+
+  traefik:
+    image: 'traefik:1.6.4-alpine'
+    container_name: 'traefik'
+    networks:
+      - 'hosting'
+    volumes:
+      - "{{ compose_runtime_path }}/traefik.toml:/etc/traefik/traefik.toml"
+      - "{{ compose_runtime_path }}/htpasswd:/htpasswd"
+      - "{{ compose_runtime_path }}/acme.json:/acme.json"
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    ports:
+      - "{{ server.ports.http }}:{{ server.ports.http }}"
+      - "{{ server.ports.https }}:{{ server.ports.https }}"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.frontend.rule=Host:dashboard.{{ server.domain }}"
+      - "traefik.frontend.auth.basic={{ credentials.traefik.user }}:{{ credentials.traefik.password }}"
+      - "traefik.port=8080"
+
+  postgres-gitea:
+    image: 'postgres:10-alpine'
+    container_name: postgres-gitea
+    networks:
+      - hosting
+    expose:
+      - "5432"
+    environment:
+      - "PGDATA=/data"
+      - "POSTGRES_DB=gitea"
+      - "POSTGRES_USER={{ credentials.postgres.user }}"
+      - "POSTGRES_PASSWORD={{ credentials.postgres.password }}"
+    volumes:
+      - "{{ persistent_data_path }}/postgres:/data"
+
+  gitea:
+    image: 'gitea/gitea:1.5'
+    container_name: 'gitea'
+    networks:
+      - 'hosting'
+    volumes:
+      - "{{ persistent_data_path }}/gitea:/data"
+    expose:
+      - "3000"
+    ports:
+      - "1044:22/tcp"
+    links:
+      - "postgres-gitea:postgres-gitea"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.backend=gitea"
+      - "traefik.frontend.rule=Host:git.{{ server.domain }}"
+      - "traefik.port=3000"
+
+  portainer:
+    image: 'portainer/portainer:latest'
+    container_name: 'portainer'
+    volumes:
+      - portainer_data:/data portainer/portainer
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    networks:
+      - 'hosting'
+    expose:
+      - "9000"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.backend=portainer"
+      - "traefik.frontend.rule=Host:portainer.{{ server.domain }}"
+      - "traefik.port=9000"
+      - "traefik.frontend.passHostHeader=true"
+
+  searx:
+    image: 'hoellen/searx:0.14.0'
+    container_name: 'searx'
+    environment:
+      - IMAGE_PROXY=True
+      - "BASE_URL=http://searx.{{ server.domain }}"
+    networks:
+      - hosting
+    expose:
+      - "8888"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.backend=searx"
+      - "traefik.frontend.rule=Host:searx.{{ server.domain }}"
+      - "traefik.port=8888"
+      - "traefik.frontend.passHostHeader=true"
+
+  syncthing:
+    image: 'linuxserver/syncthing:123'
+    container_name: 'syncthing'
+    environment:
+      - "PUID=0"
+      - "PGID=0"
+    networks:
+      - hosting
+    expose:
+      - "8384"
+    ports:
+      - "22000:22000"
+      - "21027:21027/udp"
+    volumes:
+      - "{{ persistent_data_path }}/syncthing/config:/config"
+      - "{{ persistent_data_path }}/syncthing/data:/mnt/data"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.backend=syncthing"
+      - "traefik.frontend.rule=Host:syncthing.{{ server.domain }}"
+      - "traefik.port=8384"
+      - "traefik.frontend.passHostHeader=true"
+
+firewall_open_ports:
+  gitea:
+     port: '1044'
+     proto: 'tcp'
+  http:
+    port: '80'
+    proto: 'tcp'
+  https:
+    port: '443'
+    proto: 'tcp'
+  syncthing-listen:
+    port: '22000'
+    proto: 'tcp'
+  syncthing-discovery:
+    port: '21027'
+    proto: 'udp'
+  openvpn:
+    port: '1194'
+    proto: 'udp'
+
+firewall_closed_ports:
+  gitea-old:
+    port: '1022'
+    proto: 'tcp'
+
+global_packages:
+  - git
+  - tmux
+  - libselinux-python
+  - python-passlib
+  - duplicity
+
+sftp_server_path: "/usr/libexec/openssh/sftp-server"
+python_pip_pkg: "python-pip"

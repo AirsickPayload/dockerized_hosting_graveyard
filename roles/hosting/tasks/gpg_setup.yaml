@@ -1,0 +1,44 @@
+---
+
+- name: Ensure that GNUPG is installed
+  become: yes
+  dnf:
+    name: gnupg
+    state: present
+
+- name: Check if the keys are already imported
+  shell: gpg2 --list-keys | grep $hash && gpg --list-secret-keys | grep $hash
+  environment:
+    hash_public: "643107DB5BB53FFB93D9F5BC5056D18AD3834FA6"
+  ignore_errors: True
+  register: gpg_key_check
+
+- name: place the keys in a temporary place
+  copy:
+    src: "{{ item }}"
+    dest: "/tmp/{{ item | basename }}"
+    owner: "{{ os_user }}"
+    group: "{{ os_user }}"
+    mode: 0600
+  with_items:
+    - keys/backup_private.key
+    - keys/backup_public.key
+  when: gpg_key_check|failed
+
+- name: import public key
+  shell: gpg2 --import --yes backup_public.key
+  args:
+    chdir: /tmp
+
+- name: import private key
+  shell: "echo \"{{ gpg_secret }}\" | gpg2 --passphrase-fd 0 --import --yes backup_private.key"
+  args:
+    chdir: /tmp
+
+- name: remove temporary gpg key files
+  file:
+    path: "/tmp/{{ item | basename}}"
+    state: absent
+  with_items:
+    - keys/backup_private.key
+    - keys/backup_public.key
